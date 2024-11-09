@@ -8,6 +8,7 @@ import { InteractionRequiredAuthError, ResponseMode, AuthorizationCodeRequest } 
 import express, { Request, Response, NextFunction, Router } from 'express';
 
 import { AppConfig, AuthProvider } from './AuthProvider';
+import { cacheClient } from './app';
 import UrlUtils from './UrlUtils';
 
 type TokenRequest = Omit<AuthorizationCodeRequest, "code" | "redirectUri">;
@@ -126,3 +127,46 @@ export const auth = (options: AuthOptions): Router => {
 
     return appRouter;
 };
+
+export const removeAccount = (options: AuthOptions): Router => {
+    const appRouter = express.Router();
+
+    // ensure session is available
+    appRouter.use((req: Request, res: Response, next: NextFunction) => {
+        if (!req.session) {
+            throw new Error("Session not found. Please check your session middleware configuration.");
+        }
+
+        next();
+    });
+
+    appRouter.post("/remove-account", async (req: Request, res: Response, next: NextFunction) => {
+        try {
+            const sessionId = req.session.id;
+            const homeAccountId = req.session.account!.homeAccountId;
+
+            const beforeRemoveAccount = await cacheClient.get(homeAccountId);
+            console.log('Token cache before removing account:');
+            console.log(beforeRemoveAccount && JSON.parse(beforeRemoveAccount));
+
+            await options.authProvider.removeAccount(sessionId, homeAccountId);
+
+            const afterRemoveAccount = await cacheClient.get(homeAccountId);
+            console.log('Token cache after removing account:');
+            console.log(afterRemoveAccount && JSON.parse(afterRemoveAccount));
+
+            req.session.destroy((err) => {
+                if(err) {
+                    console.error(err);
+                    throw new Error("Error occurred while removing account.");
+                }
+
+                res.redirect("/");
+            })
+        } catch (error) {
+            next(error);
+        }
+    });
+
+    return appRouter;
+}

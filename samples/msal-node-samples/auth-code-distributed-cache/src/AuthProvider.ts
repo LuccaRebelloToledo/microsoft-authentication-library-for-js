@@ -54,7 +54,7 @@ export class AuthProvider {
                     loggerCallback(loglevel, message, containsPii) {
                         console.log(message);
                     },
-                    logLevel: LogLevel.Verbose,
+                    logLevel: LogLevel.Trace,
                     piiLoggingEnabled: false
                 },
                 // proxyUrl: "http://localhost:8888" // uncomment to capture traffic with Fiddler
@@ -130,6 +130,18 @@ export class AuthProvider {
         performance.measure("acquireTokenSilent", "acquireTokenSilent-start", "acquireTokenSilent-end");
 
         return tokenResponse;
+    }
+
+    async removeAccount(sessionId: string, homeAccountId: string): Promise<void> {
+        const msalInstance = this.getMsalInstance(sessionId);
+
+        const account = await msalInstance.getTokenCache().getAccountByHomeId(homeAccountId);
+        
+        if(!account) {
+            throw new Error('Account not found in cache');
+        }
+
+        await msalInstance.getTokenCache().removeAccount(account);
     }
 
     private static async getMetadata(msalConfig: Configuration, cacheClient: RedisClientType): Promise<Configuration> {

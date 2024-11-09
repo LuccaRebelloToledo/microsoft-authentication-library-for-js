@@ -18,7 +18,7 @@ import { createClient, RedisClientType } from "redis";
 import { AccountInfo, AuthorizationCodeRequest } from "@azure/msal-node";
 
 import { AppConfig, AuthProvider } from "./AuthProvider";
-import { auth } from "./middleware";
+import { auth, removeAccount } from "./middleware";
 import AxiosHelper from "./AxiosHelper";
 
 declare module "express-session" {
@@ -50,9 +50,11 @@ const appConfig: AppConfig = {
     redirectUri: process.env.REDIRECT_URI || "ENTER_REDIRECT_URI_HERE",
 };
 
+export let cacheClient: RedisClientType;
+
 async function main() {
     initializePerformanceObserver();
-    const cacheClient = await initializeRedisClient();
+    cacheClient = await initializeRedisClient();
     const authProvider = await AuthProvider.initialize(appConfig, cacheClient);
 
     /**
@@ -117,6 +119,12 @@ async function main() {
             },
         })
     );
+
+    app.use(removeAccount({
+        appConfig,
+        authProvider,
+        protectedResources: {},
+    }));
 
     app.get(
         "/call-graph-direct",
